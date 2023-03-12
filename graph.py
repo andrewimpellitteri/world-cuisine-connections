@@ -25,6 +25,8 @@ new_df = new_df.replace(0, np.nan)
 for col in new_df.columns:
     print(col)
     print(new_df.nsmallest(5, col))
+    # test comment
+    
 """
 G = nx.from_numpy_array(new_df.values)
 G = nx.relabel_nodes(G, dict(enumerate(df.columns)))
