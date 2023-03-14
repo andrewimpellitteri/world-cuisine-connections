@@ -5,6 +5,7 @@ import numpy as np
 from pyvis.network import Network
 
 df = pd.read_csv('look_bert2.csv')
+pop_weights = pd.read_csv('pop_weights.csv').to_dict()
 new_df = pd.DataFrame(index=df.columns, columns=df.columns)
 
 df = df[df.columns[1:]]
@@ -61,10 +62,25 @@ nx.draw(G, nodelist=nodelist, with_labels=True, width=weights)
 plt.show()
 """
 
+cleaned = []
+for v in pop_weights.values():
+    cleaned.append(v.values())
 
-def weighting_fn(w):
+pop_weights = dict(zip(cleaned[0], cleaned[1]))
+
+def weighting_fn(w, cutoff, src):
+    
+    if w > cutoff:
+        return 0
+    try:
+        reweight = pop_weights[src]
+        w /= reweight
+    except KeyError as e:
+        # print(e)
+        pass
     # inv = 1 - w
     # sig = 1/(1 + np.exp(-inv))
+    
     return (1 - w) ** 15
 
 def html_network(df):
@@ -89,11 +105,12 @@ def html_network(df):
     for e in edge_data:
                     src = e[0]
                     dst = e[1]
-                    w = weighting_fn(e[2])
-
+                    w = weighting_fn(e[2], cutoff=0.005, src=e[0])
+                    
                     got_net.add_node(src, src, title=src)
                     got_net.add_node(dst, dst, title=dst)
-                    got_net.add_edge(src, dst, value=w)
+                    if src != dst:
+                        got_net.add_edge(src, dst, value=w)
 
     neighbor_map = got_net.get_adj_list()
 
