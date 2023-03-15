@@ -23,9 +23,9 @@ for col in df.columns:
 
 
 
-model = PolyFuzz(bert)
+model = PolyFuzz("EditDistance")
 tqdm(model.match(all_d, all_d))
-model.group(link_min_similarity=0.50)
+model.group(link_min_similarity=0.40)
 model.get_matches()
 cluster_dict = model.get_clusters()
 
@@ -52,6 +52,5 @@ for col in df.columns:
     to_concat.append(summ)
 
 df = pd.concat(to_concat)
-df.to_csv('look_bert2.csv')
+df.to_csv('look_edit2.csv')
 print(df)
-

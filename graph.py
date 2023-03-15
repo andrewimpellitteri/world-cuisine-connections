@@ -3,25 +3,74 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from pyvis.network import Network
+from sklearn.metrics.pairwise import cosine_similarity
+from scipy.spatial.distance import jaccard
+from scipy.stats.stats import pearsonr   
 
-df = pd.read_csv('look_bert2.csv')
+
+df = pd.read_csv('look_edit2.csv')
 pop_weights = pd.read_csv('pop_weights.csv').to_dict()
-new_df = pd.DataFrame(index=df.columns, columns=df.columns)
+
+
+cleaned = []
+for v in pop_weights.values():
+    cleaned.append(v.values())
+
+pop_weights = dict(zip(cleaned[0], cleaned[1]))
+
+
 
 df = df[df.columns[1:]]
 df = df.drop([0])
 
-for col1 in df.columns:
-    for col2 in df.columns:
-        if col1 != col2:
-            temp_df = (df[col1].astype(float) - df[col2].astype(float)) ** 2
-            temp_df = temp_df.sum()
+def calc_sim(df):
 
-            new_df[col1][col2] = temp_df
+    new_df = pd.DataFrame(index=df.columns, columns=df.columns)
 
-new_df = new_df[new_df.columns[1:]].fillna(0)
-new_df = new_df.iloc[1:, :]
-new_df = (new_df - new_df.min()) / (new_df.max() - new_df.min())
+    for col1 in df.columns:
+        for col2 in df.columns:
+            if col1 != col2:
+                # euclidean distance
+                # temp_df = (df[col1].astype(float) - df[col2].astype(float)) ** 2
+                # temp_df = temp_df.sum()
+                c1 = np.nan_to_num(df[col1].astype(float).values.reshape(1,-1))
+                c2 = np.nan_to_num(df[col2].astype(float).values.reshape(1,-1))
+                
+                c1 /= pop_weights[col1] 
+                c2 /= pop_weights[col2]
+
+                print(c1)
+
+                # temp_df = cosine_similarity(c1, c2)
+                
+                jac = jaccard(c1[0], c2[0])
+                
+                temp_df =  (1 + pearsonr(c1[0], c2[0])[0]) * jac
+
+                print(temp_df)
+                new_df[col1][col2] = temp_df
+
+    new_df = new_df[new_df.columns[1:]].fillna(0)
+    new_df = new_df.iloc[1:, :]
+    new_df = (new_df - new_df.min()) / (new_df.max() - new_df.min())
+
+    return new_df
+
+
+new_df = calc_sim(df)
+# new_df = 1 - new_df
+
+plt.hist(new_df)
+plt.show()
+
+closest = {}
+for col in new_df.columns:
+    so = list(new_df[col].astype(float).fillna(0).sort_values(ascending=False).index[1:10])
+    so = [e.strip(' ') for e in so]
+
+    closest[col] = so
+
+print(list(closest.values()), sep="\n")
 """
 mean_df = new_df.mean(axis=0).sort_values()
 print(mean_df)
@@ -62,32 +111,27 @@ nx.draw(G, nodelist=nodelist, with_labels=True, width=weights)
 plt.show()
 """
 
-cleaned = []
-for v in pop_weights.values():
-    cleaned.append(v.values())
-
-pop_weights = dict(zip(cleaned[0], cleaned[1]))
 
 def weighting_fn(w, cutoff, src):
     
-    if w > cutoff:
+    if w < cutoff:
         return 0
     try:
         reweight = pop_weights[src]
-        w /= reweight
+        w /= reweight ** 3
     except KeyError as e:
         # print(e)
         pass
     # inv = 1 - w
     # sig = 1/(1 + np.exp(-inv))
     
-    return (1 - w) ** 15
+    return 5 * w
 
 def html_network(df):
 
-    got_net = Network(height="750px", width="100%", bgcolor="#222222", font_color="white", select_menu=True)
+    got_net = Network(height="750px", width="100%", bgcolor="#222222", font_color="white")
 
-    got_net.show_buttons(filter_=['physics'])
+    # got_net.show_buttons(filter_=['physics'])
 
     # set the physics layout of the network
     got_net.barnes_hut()
@@ -105,7 +149,7 @@ def html_network(df):
     for e in edge_data:
                     src = e[0]
                     dst = e[1]
-                    w = weighting_fn(e[2], cutoff=0.005, src=e[0])
+                    w = weighting_fn(e[2], cutoff=0.001, src=e[0])
                     
                     got_net.add_node(src, src, title=src)
                     got_net.add_node(dst, dst, title=dst)
@@ -116,8 +160,8 @@ def html_network(df):
 
     # add neighbor data to node hover data
     for node in got_net.nodes:
-                    node["title"] += " Neighbors:<br>" + "<br>".join(neighbor_map[node["id"]])
-                    node["value"] = len(neighbor_map[node["id"]])
+                    node["title"] += " Closest Neighbors: " + " ".join(closest[node["id"]])
+                    node["value"] = len(closest[node["id"]])
 
     got_net.show("connection_map.html")
 
